@@ -1,0 +1,16 @@
+# Web Server
+fastapi
+uvicorn
+python-multipart
+
+# LLM & Orchestration
+langchain
+langchain-community
+langchain-groq
+
+# Vector Database & Processing
+faiss-cpu
+pypdf
+
+# Embeddings
+sentence-transformers
