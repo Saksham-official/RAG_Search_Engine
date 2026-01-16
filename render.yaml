@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: rag-search-engine
+    name: rag_search_engine
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
