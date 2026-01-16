@@ -1,16 +1,17 @@
-# Web Server
-fastapi
-uvicorn
-python-multipart
-
-# LLM & Orchestration
 langchain
 langchain-community
 langchain-groq
-
-# Vector Database & Processing
-faiss-cpu
+langchain-openai
+langchain-text-splitters
+langchain-core
 pypdf
-
-# Embeddings
+faiss-cpu
 sentence-transformers
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+unstructured
+python-docx
+beautifulsoup4
+markdown
