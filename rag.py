@@ -18,8 +18,12 @@ def build_vectorstore(chunks, embeddings):
     return vectorstore
 
 def build_or_load_vectorstore(chunks = None):
+    # Use smaller, faster model for deployment
+    # all-MiniLM-L6-v2 = 80MB vs paraphrase-MiniLM-L3-v2 = 50MB
     embeddings = HuggingFaceEmbeddings(
-        model_name = "sentence-transformers/all-MiniLM-L6-v2"
+        model_name = "sentence-transformers/paraphrase-MiniLM-L3-v2",
+        model_kwargs = {'device': 'cpu'},
+        encode_kwargs = {'normalize_embeddings': True}
     )
 
     # If new chunks are provided, always create a fresh index (new upload)
