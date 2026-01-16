@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from ingest import ingest_files
 from rag import build_or_load_vectorstore, build_rag_chain_with_sources
@@ -16,6 +17,15 @@ app = FastAPI(
     title="RAG Search Engine",
     description="Intelligent document search and Q&A with AI-powered answers and source citations",
     version="2.0.0"
+)
+
+# Add CORS middleware for frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (change to specific domain in production)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 UPLOAD_DIR = "uploads"
