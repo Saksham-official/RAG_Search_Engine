@@ -2,7 +2,6 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
 from langchain_groq import ChatGroq
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
@@ -67,25 +66,13 @@ def build_rag_chain(vectorstore):
         ("human", "Context: {context}\n\nQuestion: {question}")
     ])
 
-    # Choose LLM based on environment variable
-    llm_provider = os.getenv("LLM_PROVIDER", "groq").lower()
-    
-    if llm_provider == "openai":
-        llm = ChatOpenAI(
-            api_key = os.getenv("OPENAI_API_KEY"),
-            model_name = "gpt-3.5-turbo",  # You can also use "gpt-4" or "gpt-4-turbo"
-            temperature = 0
-        )
-        print("Using OpenAI as LLM provider")
-    elif llm_provider == "groq":
-        llm = ChatGroq(
-            api_key = os.getenv("GROQ_API_KEY"),
-            model_name = "llama-3.1-8b-instant",
-            temperature = 0
-        )
-        print("Using Groq as LLM provider")
-    else:
-        raise ValueError(f"Invalid LLM_PROVIDER: {llm_provider}. Must be 'openai' or 'groq'")
+    # Using Groq as LLM provider (OpenAI removed to save dependencies)
+    llm = ChatGroq(
+        api_key = os.getenv("GROQ_API_KEY"),
+        model_name = "llama-3.1-8b-instant",
+        temperature = 0
+    )
+    print("✓ Using Groq as LLM provider")
 
     chain = (
         {"context": retriever, "question": RunnablePassthrough()}
