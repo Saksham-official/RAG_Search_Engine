@@ -13,8 +13,8 @@ from datetime import datetime
 load_dotenv()
 
 app = FastAPI(
-    title="PDF Question-Answering System",
-    description="Upload PDFs and ask questions with AI-powered answers and source citations",
+    title="RAG Search Engine",
+    description="Intelligent document search and Q&A with AI-powered answers and source citations",
     version="2.0.0"
 )
 

@@ -1,6 +1,6 @@
-# 📚 PDF Question-Answering System with RAG
+# 🔍 RAG Search Engine
 
-> An intelligent document Q&A system powered by Retrieval-Augmented Generation (RAG), supporting multiple LLM providers and featuring source citation.
+> An intelligent document search and question-answering system powered by Retrieval-Augmented Generation (RAG), supporting multiple LLM providers and featuring source citation.
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org)
