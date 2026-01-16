@@ -18,10 +18,11 @@ def build_vectorstore(chunks, embeddings):
     return vectorstore
 
 def build_or_load_vectorstore(chunks = None):
-    # Using better quality model - Fly.io has 2GB RAM (plenty of space!)
-    # all-MiniLM-L6-v2 = Better accuracy than paraphrase-MiniLM-L3-v2
+    # Using SMALLEST model possible for deployment
+    # paraphrase-albert-small-v2 = Only 43 MB! (vs 200 MB for all-MiniLM-L6-v2)
+    # Still gives good quality for RAG applications
     embeddings = HuggingFaceEmbeddings(
-        model_name = "sentence-transformers/all-MiniLM-L6-v2",
+        model_name = "sentence-transformers/paraphrase-albert-small-v2",
         model_kwargs = {'device': 'cpu'},
         encode_kwargs = {'normalize_embeddings': True}
     )

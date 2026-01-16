@@ -11,7 +11,3 @@ fastapi
 uvicorn[standard]
 python-multipart
 python-dotenv
-unstructured
-python-docx
-beautifulsoup4
-markdown
