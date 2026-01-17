@@ -16,9 +16,12 @@ def ingest_files(file_paths: list[str]):
         print("WARNING: No documents loaded!")
         return []
     
+    # Optimized chunking for balanced model
+    # Smaller chunks = more precise context matching
+    # Better for improved embedding model quality
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size = 2000,
-        chunk_overlap = 200
+        chunk_size = 1000,  # Reduced for precision (was 2000)
+        chunk_overlap = 150  # Optimal overlap for context continuity
     )
 
     chunks = splitter.split_documents(all_docs)

@@ -17,11 +17,11 @@ def build_vectorstore(chunks, embeddings):
     return vectorstore
 
 def build_or_load_vectorstore(chunks = None):
-    # Using SMALLEST model possible for deployment
-    # paraphrase-albert-small-v2 = Only 43 MB! (vs 200 MB for all-MiniLM-L6-v2)
-    # Still gives good quality for RAG applications
+    # Using BALANCED/AVERAGE model for better quality
+    # all-MiniLM-L6-v2 = ~80 MB, 2x better quality than small models
+    # Excellent balance of speed and accuracy for production RAG
     embeddings = HuggingFaceEmbeddings(
-        model_name = "sentence-transformers/paraphrase-albert-small-v2",
+        model_name = "sentence-transformers/all-MiniLM-L6-v2",
         model_kwargs = {'device': 'cpu'},
         encode_kwargs = {'normalize_embeddings': True}
     )
@@ -55,8 +55,8 @@ def build_rag_chain(vectorstore):
     retriever = vectorstore.as_retriever(
         search_type = "similarity",
         search_kwargs = {
-            "k": 3,  # Reduced from 10 to 3 to stay within Groq token limits
-            "fetch_k": 10  # Reduced from 20 to 10
+            "k": 5,  # Increased to 5 for richer context with better model
+            "fetch_k": 15  # More candidates for better retrieval
         }
     )
 
@@ -66,13 +66,13 @@ def build_rag_chain(vectorstore):
         ("human", "Context: {context}\n\nQuestion: {question}")
     ])
 
-    # Using Groq as LLM provider (OpenAI removed to save dependencies)
+    # Using Groq Mixtral - balanced size and performance
     llm = ChatGroq(
         api_key = os.getenv("GROQ_API_KEY"),
-        model_name = "llama-3.1-8b-instant",
+        model_name = "mixtral-8x7b-32768",  # ~13B active params (47B total, MoE)
         temperature = 0
     )
-    print("✓ Using Groq as LLM provider")
+    print("✓ Using Groq Mixtral 8x7B (Balanced Model)")
 
     chain = (
         {"context": retriever, "question": RunnablePassthrough()}
@@ -97,8 +97,8 @@ def build_rag_chain_with_sources(vectorstore):
     retriever = vectorstore.as_retriever(
         search_type = "similarity",
         search_kwargs = {
-            "k": 3,  # Number of chunks to retrieve
-            "fetch_k": 10
+            "k": 5,  # Increased for better context coverage
+            "fetch_k": 15  # More candidates for selection
         }
     )
 
@@ -108,13 +108,13 @@ def build_rag_chain_with_sources(vectorstore):
         ("human", "Context: {context}\n\nQuestion: {question}")
     ])
 
-    # Using Groq as LLM provider
+    # Using Groq Mixtral - balanced size and performance
     llm = ChatGroq(
         api_key = os.getenv("GROQ_API_KEY"),
-        model_name = "llama-3.1-8b-instant",
+        model_name = "mixtral-8x7b-32768",  # ~13B active params (47B total, MoE)
         temperature = 0
     )
-    print("✓ Using Groq as LLM provider")
+    print("✓ Using Groq Mixtral 8x7B (Balanced Model)")
 
     # Custom function that returns both answer and sources
     def rag_with_sources(question: str):

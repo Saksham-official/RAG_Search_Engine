@@ -56,9 +56,9 @@ async def startup_event():
     print("📦 Pre-loading embedding model...")
     try:
         from langchain_huggingface import HuggingFaceEmbeddings
-        # This downloads the model if not cached - prevents 502 on first upload
+        # Pre-load the BALANCED model to prevent timeout on first upload
         _ = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/paraphrase-albert-small-v2",
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
             model_kwargs={'device': 'cpu'}
         )
         print("✅ Model loaded and cached!")
