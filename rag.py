@@ -66,13 +66,13 @@ def build_rag_chain(vectorstore):
         ("human", "Context: {context}\n\nQuestion: {question}")
     ])
 
-    # Using Groq Mixtral - balanced size and performance
+    # Using Groq Llama 3.1 8B - fast and efficient
     llm = ChatGroq(
         api_key = os.getenv("GROQ_API_KEY"),
-        model_name = "mixtral-8x7b-32768",  # ~13B active params (47B total, MoE)
+        model_name = "llama-3.1-8b-instant",  # 8B params - fast & efficient
         temperature = 0
     )
-    print("✓ Using Groq Mixtral 8x7B (Balanced Model)")
+    print("✓ Using Groq Llama 3.1 8B (Fast Model)")
 
     chain = (
         {"context": retriever, "question": RunnablePassthrough()}
@@ -108,13 +108,13 @@ def build_rag_chain_with_sources(vectorstore):
         ("human", "Context: {context}\n\nQuestion: {question}")
     ])
 
-    # Using Groq Mixtral - balanced size and performance
+    # Using Groq Llama 3.1 8B - fast and efficient
     llm = ChatGroq(
         api_key = os.getenv("GROQ_API_KEY"),
-        model_name = "mixtral-8x7b-32768",  # ~13B active params (47B total, MoE)
+        model_name = "llama-3.1-8b-instant",  # 8B params - fast & efficient
         temperature = 0
     )
-    print("✓ Using Groq Mixtral 8x7B (Balanced Model)")
+    print("✓ Using Groq Llama 3.1 8B (Fast Model)")
 
     # Custom function that returns both answer and sources
     def rag_with_sources(question: str):
