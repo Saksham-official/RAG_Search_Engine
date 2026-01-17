@@ -108,25 +108,13 @@ def build_rag_chain_with_sources(vectorstore):
         ("human", "Context: {context}\n\nQuestion: {question}")
     ])
 
-    # Choose LLM based on environment variable
-    llm_provider = os.getenv("LLM_PROVIDER", "groq").lower()
-    
-    if llm_provider == "openai":
-        llm = ChatOpenAI(
-            api_key = os.getenv("OPENAI_API_KEY"),
-            model_name = "gpt-3.5-turbo",
-            temperature = 0
-        )
-        print("✓ Using OpenAI as LLM provider")
-    elif llm_provider == "groq":
-        llm = ChatGroq(
-            api_key = os.getenv("GROQ_API_KEY"),
-            model_name = "llama-3.1-8b-instant",
-            temperature = 0
-        )
-        print("✓ Using Groq as LLM provider")
-    else:
-        raise ValueError(f"Invalid LLM_PROVIDER: {llm_provider}. Must be 'openai' or 'groq'")
+    # Using Groq as LLM provider
+    llm = ChatGroq(
+        api_key = os.getenv("GROQ_API_KEY"),
+        model_name = "llama-3.1-8b-instant",
+        temperature = 0
+    )
+    print("✓ Using Groq as LLM provider")
 
     # Custom function that returns both answer and sources
     def rag_with_sources(question: str):

@@ -1,0 +1,43 @@
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+
+# Environment files (secrets!)
+.env
+.env.local
+
+# Data directories (will be created fresh)
+data/
+uploads/
+
+# Documentation (not needed in container)
+*.md
+LICENSE
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
