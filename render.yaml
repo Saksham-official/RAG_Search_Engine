@@ -1,18 +1,16 @@
-# Render Blueprint - Infrastructure as Code
-# This file tells Render how to deploy your service
+# Render Blueprint - Docker Deployment
+# https://render.com/docs/blueprint-spec
 
 services:
   - type: web
     name: rag-search-engine
     runtime: docker
+    dockerfilePath: ./Dockerfile
     
-    # Health check endpoint
+    # Health check
     healthCheckPath: /
     
-    # Environment variables (set GROQ_API_KEY in Render dashboard)
+    # Environment variables
     envVars:
       - key: GROQ_API_KEY
-        sync: false  # Must be set manually in Render dashboard
-    
-    # Auto-deploy when you push to main branch
-    autoDeploy: true
+        sync: false
