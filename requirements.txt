@@ -6,7 +6,6 @@ langchain-text-splitters
 langchain-core
 pypdf
 faiss-cpu
-sentence-transformers
 fastapi
 uvicorn[standard]
 python-multipart

@@ -1,4 +1,4 @@
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_community.vectorstores import FAISS
 
 from langchain_groq import ChatGroq
@@ -17,13 +17,13 @@ def build_vectorstore(chunks, embeddings):
     return vectorstore
 
 def build_or_load_vectorstore(chunks = None):
-    # Using BALANCED/AVERAGE model for better quality
-    # all-MiniLM-L6-v2 = ~80 MB, 2x better quality than small models
-    # Excellent balance of speed and accuracy for production RAG
-    embeddings = HuggingFaceEmbeddings(
-        model_name = "sentence-transformers/all-MiniLM-L6-v2",
-        model_kwargs = {'device': 'cpu'},
-        encode_kwargs = {'normalize_embeddings': True}
+    # Using HuggingFace Inference API for embeddings (no local model needed!)
+    # all-MiniLM-L6-v2 via API = 0 MB local, same quality
+    # Reduces deployment size from ~750MB to ~180MB by removing PyTorch
+    # REQUIRES: HF token with "Make calls to Inference Providers" permission
+    embeddings = HuggingFaceEndpointEmbeddings(
+        huggingfacehub_api_token = os.getenv("HF_API_KEY"),
+        model = "sentence-transformers/all-MiniLM-L6-v2"
     )
 
     # If new chunks are provided, always create a fresh index (new upload)
@@ -55,8 +55,8 @@ def build_rag_chain(vectorstore):
     retriever = vectorstore.as_retriever(
         search_type = "similarity",
         search_kwargs = {
-            "k": 5,  # Increased to 5 for richer context with better model
-            "fetch_k": 15  # More candidates for better retrieval
+            "k": 5,  
+            "fetch_k": 15  
         }
     )
 
@@ -66,10 +66,9 @@ def build_rag_chain(vectorstore):
         ("human", "Context: {context}\n\nQuestion: {question}")
     ])
 
-    # Using Groq Llama 3.1 8B - fast and efficient
     llm = ChatGroq(
         api_key = os.getenv("GROQ_API_KEY"),
-        model_name = "llama-3.1-8b-instant",  # 8B params - fast & efficient
+        model_name = "llama-3.1-8b-instant", 
         temperature = 0
     )
     print("✓ Using Groq Llama 3.1 8B (Fast Model)")

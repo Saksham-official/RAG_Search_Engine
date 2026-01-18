@@ -45,27 +45,15 @@ chat_history = []
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize application and pre-load embedding model."""
+    """Initialize application state."""
     global vectorstore, rag_chain, documents, chat_history
     vectorstore = None
     rag_chain = None
     documents = {}
     chat_history = []
     
-    # Pre-load embedding model to prevent timeout on first upload
-    print("📦 Pre-loading embedding model...")
-    try:
-        from langchain_huggingface import HuggingFaceEmbeddings
-        # Pre-load the BALANCED model to prevent timeout on first upload
-        _ = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
-            model_kwargs={'device': 'cpu'}
-        )
-        print("✅ Model loaded and cached!")
-    except Exception as e:
-        print(f"⚠️ Warning: {e}")
-    
-    print("✓ Server started - Ready to receive PDFs!")
+    print("✓ Server started - Using API-based embeddings (lightweight deployment!)")
+    print("✓ Ready to receive PDFs!")
 
 # ============================================
 # FEATURE 1: MULTIPLE FILE SUPPORT

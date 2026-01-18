@@ -21,7 +21,8 @@ This project implements a **production-ready PDF Question-Answering system** usi
 - 🔄 **Dual LLM Support** - Switch between OpenAI and Groq seamlessly
 - 📊 **Document Management** - List, upload, and delete documents via REST API
 - ⚡ **Fast Retrieval** - FAISS vector store for efficient similarity search
-- 🔍 **Semantic Search** - HuggingFace embeddings for accurate context retrieval
+- 🔍 **Semantic Search** - HuggingFace Inference API embeddings for accurate context retrieval
+- 📦 **Lightweight Deployment** - Under 200MB total size (API-based embeddings)
 
 ---
 
@@ -141,7 +142,8 @@ graph LR
 
 - Python 3.11 or higher
 - Virtual environment (recommended)
-- API key for Groq or OpenAI
+- Groq API key (free tier available)
+- HuggingFace API key (free tier available)
 
 ### Installation
 
@@ -175,11 +177,9 @@ Create a `.env` file in the project root:
 # Groq API Key (free tier available)
 GROQ_API_KEY=your-groq-api-key-here
 
-# OpenAI API Key (optional)
-OPENAI_API_KEY=your-openai-api-key-here
-
-# Choose LLM provider: "groq" or "openai"
-LLM_PROVIDER=groq
+# HuggingFace API Key (free tier available)
+# Used for lightweight API-based embeddings (<200MB deployment)
+HF_API_KEY=your-huggingface-api-key-here
 ```
 
 5. **Run the server**
@@ -293,7 +293,7 @@ Interactive API documentation is available at `/docs` when the server is running
 |-----------|-----------|---------|
 | **Web Framework** | FastAPI | High-performance API server |
 | **Vector Store** | FAISS | Efficient similarity search |
-| **Embeddings** | HuggingFace (all-MiniLM-L6-v2) | Text → Vector conversion |
+| **Embeddings** | HuggingFace Inference API (all-MiniLM-L6-v2) | Text → Vector conversion |
 | **LLM** | Groq (llama-3.1-8b) / OpenAI (gpt-3.5-turbo) | Answer generation |
 | **RAG Framework** | LangChain | Orchestration and chains |
 | **PDF Processing** | PyPDF | Document parsing |
@@ -430,21 +430,20 @@ Automatic conversation tracking:
 
 ## 🚦 Getting API Keys
 
-### Groq (Recommended for Development)
+### Groq (Required for LLM)
 
 1. Visit [Groq Console](https://console.groq.com)
 2. Sign up for free account
 3. Navigate to API Keys section
 4. Create new API key
-5. Copy to `.env` file
+5. Copy to `.env` file as `GROQ_API_KEY`
 
-### OpenAI (Optional)
+### HuggingFace (Required for Embeddings)
 
-1. Visit [OpenAI Platform](https://platform.openai.com)
-2. Sign up and add payment method
-3. Navigate to API Keys
-4. Create new secret key
-5. Copy to `.env` file
+1. Visit [HuggingFace Settings](https://huggingface.co/settings/tokens)
+2. Sign up for free account
+3. Create new access token (read permissions)
+4. Copy to `.env` file as `HF_API_KEY`
 
 ---
 

@@ -14,3 +14,5 @@ services:
     envVars:
       - key: GROQ_API_KEY
         sync: false
+      - key: HF_API_KEY
+        sync: false
