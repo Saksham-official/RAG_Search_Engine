@@ -1,0 +1,28 @@
+Artificial Intelligence and Machine Learning Overview
+
+Artificial Intelligence (AI) is the simulation of human intelligence in machines.
+Machine Learning (ML) is a subset of AI where systems learn from data.
+
+Key ML algorithms:
+1. Linear Regression - predicts continuous values
+2. Decision Trees - tree-like model for decisions
+3. Neural Networks - layers of interconnected nodes inspired by the brain
+4. Random Forest - ensemble of decision trees
+5. Support Vector Machines (SVM) - finds optimal decision boundary
+
+Deep Learning is a subset of ML using neural networks with many layers.
+It excels at image recognition, natural language processing, and speech recognition.
+
+Large Language Models (LLMs) like GPT-4 and LLaMA are trained on massive text corpora.
+They use transformer architecture with self-attention mechanisms.
+
+RAG (Retrieval-Augmented Generation) combines vector search with LLMs:
+- Documents are split into chunks and embedded into vectors
+- User queries are embedded and similar chunks are retrieved
+- The LLM generates answers using the retrieved context
+
+FAISS (Facebook AI Similarity Search) is a library for efficient similarity search.
+It stores and retrieves dense vectors at high speed.
+
+Embeddings convert text into numerical vectors preserving semantic meaning.
+Similar texts have similar vectors (high cosine similarity).
