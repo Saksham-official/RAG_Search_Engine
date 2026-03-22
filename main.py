@@ -1,14 +1,17 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+from typing import List, Optional, Annotated
 from ingest import ingest_files
 from rag import build_or_load_vectorstore, build_rag_chain_with_sources
 import shutil
 import os
+import requests
 from dotenv import load_dotenv
 import traceback
 import uuid
 from datetime import datetime
+from youtube_transcript_api import YouTubeTranscriptApi
+from langchain_core.documents import Document
 
 # Load environment variables from .env file
 load_dotenv()
@@ -288,16 +291,169 @@ async def ask(question: str):
 async def get_history():
     """
     Get conversation history.
-    
-    EXPLANATION:
-    - Returns all saved Q&A pairs
-    - Shows timestamps and sources
-    - Useful for reviewing past conversations
     """
     return {
         "total": len(chat_history),
         "history": chat_history
     }
+
+# ============================================
+# NEW APIs: YOUTUBE INGESTION & AUDIO QUERY
+# ============================================
+
+@app.post("/upload-youtube")
+async def upload_youtube(url: str):
+    """
+    Ingest a YouTube video transcript directly into the FAISS knowledge base!
+    Zero-cost API integration!
+    """
+    global vectorstore, rag_chain, documents
+    try:
+        # Very basic video ID extractor
+        video_id = None
+        if "v=" in url:
+            video_id = url.split("v=")[1].split("&")[0]
+        elif "youtu.be/" in url:
+            video_id = url.split("youtu.be/")[1].split("?")[0]
+            
+        if not video_id:
+            raise HTTPException(status_code=400, detail="Invalid YouTube URL format")
+            
+        print(f"Fetching transcript for Video ID: {video_id}")
+        transcript_parts = YouTubeTranscriptApi.get_transcript(video_id)
+        
+        full_text = " ".join([part['text'] for part in transcript_parts])
+        
+        doc_id = str(uuid.uuid4())
+        fake_path = f"youtube_{video_id}.txt"
+        
+        # Manually create the Langchain Document since it's just raw text
+        doc = Document(
+            page_content=f"[YOUTUBE TRANSCRIPT ID:{video_id}]\n{full_text}",
+            metadata={"source_file": fake_path, "type": "youtube"}
+        )
+        
+        # Track it in global state
+        documents[doc_id] = {
+            "id": doc_id,
+            "filename": f"YouTube Reference: {video_id}",
+            "upload_time": datetime.now().isoformat(),
+            "path": fake_path,
+            "size_bytes": len(full_text)
+        }
+        
+        # We process this standalone and append to the FAISS logic
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
+        chunks = splitter.split_documents([doc])
+        
+        print(f"✓ Extracted {len(chunks)} chunks from YouTube transcript.")
+        
+        # Rebuild vectorstore logic
+        # For a full implementation, we normally append to existing vectorstore,
+        # but for simplicity we can just re-ingest all existing paths + the new chunks
+        # Actually FAISS supports `.add_documents(chunks)`, so let's do that!
+        if vectorstore is None:
+            vectorstore = build_or_load_vectorstore(chunks)
+        else:
+            vectorstore.add_documents(chunks)
+            # save local index updates
+            vectorstore.save_local("data/faiss_index")
+            
+        rag_chain = build_rag_chain_with_sources(vectorstore)
+        
+        return {
+            "message": "Successfully ingested YouTube video!",
+            "video_id": video_id,
+            "chunks_added": len(chunks)
+        }
+    except Exception as e:
+        error_details = traceback.format_exc()
+        print(f"YouTube Error: {error_details}")
+        raise HTTPException(status_code=500, detail=f"Failed to ingest YouTube video: {str(e)}")
+
+
+@app.post("/ask-audio")
+async def ask_audio(audio_file: UploadFile = File(...)):
+    """
+    Ask a question using an Audio file (Voice Note) instead of typing!
+    Uses Groq's high-speed Whisper-Large-V3 API natively.
+    """
+    global chat_history
+    if rag_chain is None:
+        raise HTTPException(status_code=400, detail="Upload PDFs/YouTube first!")
+        
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY not found in environment.")
+        
+    try:
+        # Read the uploaded audio bytes
+        audio_content = await audio_file.read()
+        
+        # Hit Groq's Whisper API endpoint directly via HTTP
+        headers = {
+            "Authorization": f"Bearer {groq_api_key}"
+        }
+        
+        # Sending multipart form data
+        files = {
+            'file': (audio_file.filename, audio_content, audio_file.content_type),
+        }
+        data = {
+            'model': 'whisper-large-v3-turbo' # Blazing fast voice recognition
+        }
+        
+        print("Transcribing voice audio using Groq Whisper API...")
+        response = requests.post(
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            headers=headers,
+            files=files,
+            data=data
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"Whisper API Failed: {response.text}")
+            
+        transcription_result = response.json()
+        question = transcription_result.get("text", "")
+        print(f"✓ Transcribed Question: {question}")
+        
+        if not question.strip():
+            raise Exception("No speech recognized in audio file.")
+            
+        # Standard RAG inference path now that we have text!
+        result = rag_chain(question)
+        answer = result.get("answer", "")
+        source_docs = result.get("source_documents", [])
+        
+        sources = []
+        for doc in source_docs:
+            sources.append({
+                "content": doc.page_content[:200] + "...",
+                "metadata": doc.metadata
+            })
+            
+        chat_history.append({
+            "id": str(uuid.uuid4()),
+            "question": f"[🎙️ Voice Query] {question}",
+            "answer": answer,
+            "sources": sources,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        return {
+            "transcription": question,
+            "answer": answer,
+            "sources": sources,
+            "source_count": len(sources)
+        }
+        
+    except Exception as e:
+        error_details = traceback.format_exc()
+        print(f"Audio Ask Error: {error_details}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.delete("/clear-history")
 async def clear_history():
