@@ -10,3 +10,7 @@ fastapi
 uvicorn[standard]
 python-multipart
 python-dotenv
+PyMuPDF
+youtube-transcript-api
+duckduckgo-search
+requests
