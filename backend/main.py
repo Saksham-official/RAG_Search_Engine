@@ -39,6 +39,34 @@ documents = {}
 # Chat history: List of {id, question, answer, sources, timestamp}
 chat_history = []
 
+def get_all_chunks():
+    """Load chunks for all tracked documents using cache where possible."""
+    all_chunks = []
+    import pickle
+    for doc_id, doc_info in documents.items():
+        cache_path = os.path.join(UPLOAD_DIR, f"{doc_id}_chunks.pkl")
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, "rb") as f:
+                    chunks = pickle.load(f)
+                all_chunks.extend(chunks)
+                continue
+            except Exception as ce:
+                print(f"Error loading cache for {doc_id}: {ce}")
+        
+        # Fallback to ingestion
+        if os.path.exists(doc_info["path"]):
+            chunks = ingest_files([doc_info["path"]])
+            if chunks:
+                try:
+                    with open(cache_path, "wb") as f:
+                        pickle.dump(chunks, f)
+                except Exception as ce:
+                    print(f"Error caching for {doc_id}: {ce}")
+                all_chunks.extend(chunks)
+    return all_chunks
+
+
 # ============================================
 # LIFESPAN (replaces deprecated @on_event)
 # ============================================
@@ -60,6 +88,8 @@ async def lifespan(app: FastAPI):
                 if len(parts) == 2:
                     doc_id, original_filename = parts
                     if len(doc_id) == 36:
+                        if original_filename.endswith("chunks.pkl"):
+                            continue
                         display_name = original_filename.replace("_", " ")
                         if original_filename.startswith("youtube_") and original_filename.endswith(".txt"):
                             video_id = original_filename[len("youtube_"):-len(".txt")]
@@ -83,13 +113,11 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Could not load existing vector store ({e}). Rebuilding from uploads directory...")
             try:
-                paths = [doc["path"] for doc in documents.values() if os.path.exists(doc["path"])]
-                if paths:
-                    chunks = ingest_files(paths)
-                    if chunks:
-                        vectorstore = build_or_load_vectorstore(chunks)
-                        rag_chain = build_rag_chain_with_sources(vectorstore)
-                        print("[OK] Rebuilt vector store from existing uploads")
+                chunks = get_all_chunks()
+                if chunks:
+                    vectorstore = build_or_load_vectorstore(chunks)
+                    rag_chain = build_rag_chain_with_sources(vectorstore)
+                    print("[OK] Rebuilt vector store from existing uploads using fast chunk loader")
             except Exception as re:
                 print(f"Could not rebuild vector store from uploads: {re}")
 
@@ -150,9 +178,10 @@ async def upload_files(files: List[UploadFile] = File(...)):
     global vectorstore, rag_chain, documents
 
     uploaded_docs = []
-    new_paths = []  # Paths of files uploaded in THIS request
+    all_new_chunks = []
 
     try:
+        import pickle
         # Process each uploaded file
         for file in files:
             # Validate file type
@@ -189,28 +218,37 @@ async def upload_files(files: List[UploadFile] = File(...)):
                 "is_virtual": False   # real file on disk
             }
 
-            new_paths.append(file_path) # Add to new_paths for ingestion
-            uploaded_docs.append({"id": doc_id, "filename": file.filename})
             print(f"[OK] Saved: {file.filename} (ID: {doc_id})")
 
-        # Step 2: Ingest only the NEW files
-        print(f"Ingesting {len(new_paths)} new file(s)...")
-        new_chunks = ingest_files(new_paths)
+            # Step 2: Ingest this single file
+            print(f"Ingesting: {file.filename}...")
+            file_chunks = ingest_files([file_path])
 
-        if not new_chunks:
-             raise HTTPException(
-                status_code=400,
-                detail="No content could be extracted from these files"
-            )
+            if not file_chunks:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                del documents[doc_id]
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No content could be extracted from '{file.filename}'"
+                )
 
-        print(f"[OK] Extracted {len(new_chunks)} new chunks")
+            # Cache chunks for fast deletion/rebuilds
+            cache_path = os.path.join(UPLOAD_DIR, f"{doc_id}_chunks.pkl")
+            with open(cache_path, "wb") as f_cache:
+                pickle.dump(file_chunks, f_cache)
+
+            all_new_chunks.extend(file_chunks)
+            uploaded_docs.append({"id": doc_id, "filename": file.filename})
+
+        print(f"[OK] Extracted {len(all_new_chunks)} chunks total")
 
         # Step 3: Update global vectorstore
         # If no vectorstore exists, create one; otherwise add to existing
         if vectorstore is None:
-            vectorstore = build_or_load_vectorstore(new_chunks)
+            vectorstore = build_or_load_vectorstore(all_new_chunks)
         else:
-            vectorstore.add_documents(new_chunks)
+            vectorstore.add_documents(all_new_chunks)
             # Persist immediately to the canonical path from rag.py
             vectorstore.save_local(INDEX_PATH)
         
@@ -221,7 +259,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
             "message": f"Successfully uploaded {len(files)} file(s)",
             "uploaded": uploaded_docs,
             "total_documents": len(documents),
-            "new_chunks_added": len(new_chunks)
+            "new_chunks_added": len(all_new_chunks)
         }
 
     except HTTPException:
@@ -264,28 +302,46 @@ async def delete_document(doc_id: str):
 
         # Delete file from disk
         if os.path.exists(doc_info["path"]):
-            os.remove(doc_info["path"])
+            try:
+                os.remove(doc_info["path"])
+            except Exception as fe:
+                print(f"Warning: Could not delete physical file {doc_info['path']}: {fe}")
+
+        # Delete cache file from disk
+        cache_path = os.path.join(UPLOAD_DIR, f"{doc_id}_chunks.pkl")
+        if os.path.exists(cache_path):
+            try:
+                os.remove(cache_path)
+            except Exception as ce:
+                print(f"Warning: Could not delete cache file {cache_path}: {ce}")
 
         # Remove from tracking
         del documents[doc_id]
 
         # Rebuild vectorstore if documents remain
         if documents:
-            remaining_paths = [
-                doc["path"]
-                for doc in documents.values()
-                if os.path.exists(doc["path"])
-            ]
-            if remaining_paths:
-                chunks = ingest_files(remaining_paths)
-                vectorstore = build_or_load_vectorstore(chunks)
+            remaining_chunks = get_all_chunks()
+            if remaining_chunks:
+                vectorstore = build_or_load_vectorstore(remaining_chunks)
                 rag_chain = build_rag_chain_with_sources(vectorstore)
             else:
                 vectorstore = None
                 rag_chain = None
+                # Clean up FAISS index files on disk
+                if os.path.exists(INDEX_PATH):
+                    try:
+                        shutil.rmtree(INDEX_PATH)
+                    except Exception as ie:
+                        print(f"Warning: Could not delete index folder: {ie}")
         else:
             vectorstore = None
             rag_chain = None
+            # Clean up FAISS index files on disk
+            if os.path.exists(INDEX_PATH):
+                try:
+                    shutil.rmtree(INDEX_PATH)
+                except Exception as ie:
+                    print(f"Warning: Could not delete index folder: {ie}")
 
         return {
             "message": f"Deleted '{doc_info['filename']}'",
@@ -437,6 +493,12 @@ async def upload_youtube(url: str):
             )
 
         print(f"[OK] Extracted {len(new_chunks)} new chunks")
+
+        # Cache chunks
+        cache_path = os.path.join(UPLOAD_DIR, f"{doc_id}_chunks.pkl")
+        import pickle
+        with open(cache_path, "wb") as f_cache:
+            pickle.dump(new_chunks, f_cache)
 
         # Update global vectorstore
         if vectorstore is None:
