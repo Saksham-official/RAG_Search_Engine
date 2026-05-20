@@ -30,6 +30,9 @@ env/
 uploads/
 !uploads/.gitkeep
 data/
+backend/uploads/
+!backend/uploads/.gitkeep
+backend/data/
 *.log
 
 # OS

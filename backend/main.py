@@ -1,4 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+import os
+import sys
+# Add current directory to path so that relative imports resolve correctly
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Request
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from typing import List, Optional
@@ -17,8 +23,8 @@ from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisable
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file relative to the script location
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 # ============================================
 # GLOBAL STATE - Enhanced for multi-document
@@ -44,8 +50,41 @@ async def lifespan(app: FastAPI):
     rag_chain = None
     documents = {}
     chat_history = []
-    print("✓ Server started - Using API-based embeddings (lightweight deployment!)")
-    print("✓ Ready to receive PDFs!")
+
+    # Restore documents from UPLOAD_DIR
+    if os.path.exists(UPLOAD_DIR):
+        for entry in os.listdir(UPLOAD_DIR):
+            file_path = os.path.join(UPLOAD_DIR, entry)
+            if os.path.isfile(file_path):
+                parts = entry.split("_", 1)
+                if len(parts) == 2:
+                    doc_id, original_filename = parts
+                    if len(doc_id) == 36:
+                        display_name = original_filename.replace("_", " ")
+                        if original_filename.startswith("youtube_") and original_filename.endswith(".txt"):
+                            video_id = original_filename[len("youtube_"):-len(".txt")]
+                            display_name = f"YouTube: {video_id}"
+
+                        documents[doc_id] = {
+                            "id": doc_id,
+                            "filename": display_name,
+                            "upload_time": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
+                            "path": file_path,
+                            "size_bytes": os.path.getsize(file_path),
+                            "is_virtual": False
+                        }
+
+    # Try to load existing vectorstore if we have documents
+    if documents:
+        try:
+            vectorstore = build_or_load_vectorstore()
+            rag_chain = build_rag_chain_with_sources(vectorstore)
+            print("[OK] Loaded existing vector store from disk")
+        except Exception as e:
+            print(f"Could not load existing vector store: {e}")
+
+    print("[OK] Server started - Using API-based embeddings (lightweight deployment!)")
+    print("[OK] Ready to receive PDFs!")
     yield
     # Shutdown logic (if needed) goes here
 
@@ -65,7 +104,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-UPLOAD_DIR = "uploads"
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIR = os.path.join(BACKEND_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ============================================
@@ -141,7 +181,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
 
             new_paths.append(file_path) # Add to new_paths for ingestion
             uploaded_docs.append({"id": doc_id, "filename": file.filename})
-            print(f"✓ Saved: {file.filename} (ID: {doc_id})")
+            print(f"[OK] Saved: {file.filename} (ID: {doc_id})")
 
         # Step 2: Ingest only the NEW files
         print(f"Ingesting {len(new_paths)} new file(s)...")
@@ -153,7 +193,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
                 detail="No content could be extracted from these files"
             )
 
-        print(f"✓ Extracted {len(new_chunks)} new chunks")
+        print(f"[OK] Extracted {len(new_chunks)} new chunks")
 
         # Step 3: Update global vectorstore
         # If no vectorstore exists, create one; otherwise add to existing
@@ -212,8 +252,8 @@ async def delete_document(doc_id: str):
     try:
         doc_info = documents[doc_id]
 
-        # Delete file from disk (skip for virtual documents like YouTube)
-        if not doc_info.get("is_virtual", False) and os.path.exists(doc_info["path"]):
+        # Delete file from disk
+        if os.path.exists(doc_info["path"]):
             os.remove(doc_info["path"])
 
         # Remove from tracking
@@ -224,14 +264,13 @@ async def delete_document(doc_id: str):
             remaining_paths = [
                 doc["path"]
                 for doc in documents.values()
-                if not doc.get("is_virtual", False) and os.path.exists(doc["path"])
+                if os.path.exists(doc["path"])
             ]
             if remaining_paths:
                 chunks = ingest_files(remaining_paths)
                 vectorstore = build_or_load_vectorstore(chunks)
                 rag_chain = build_rag_chain_with_sources(vectorstore)
             else:
-                # Only virtual docs remaining — keep existing vectorstore or reset
                 vectorstore = None
                 rag_chain = None
         else:
@@ -302,7 +341,7 @@ async def ask(body: QuestionRequest):
         chat_history.append(history_entry)
         _enforce_chat_history_limit()
 
-        print(f"✓ Answer generated with {len(sources)} sources")
+        print(f"[OK] Answer generated with {len(sources)} sources")
 
         return {
             "answer": answer,
@@ -360,36 +399,40 @@ async def upload_youtube(url: str):
         full_text = " ".join([snippet.text for snippet in transcript])
 
         doc_id = str(uuid.uuid4())
-        # NOTE: This is a virtual path — the file does not exist on disk.
-        fake_path = f"youtube_{video_id}.txt"
+        safe_filename = f"youtube_{video_id}.txt"
+        file_path = os.path.join(UPLOAD_DIR, f"{doc_id}_{safe_filename}")
 
-        # Manually create the Langchain Document since it's just raw text
-        doc = Document(
-            page_content=f"[YOUTUBE TRANSCRIPT ID:{video_id}]\n{full_text}",
-            metadata={"source_file": fake_path, "type": "youtube"}
-        )
+        # Save transcript text to disk (no longer virtual)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"[YOUTUBE TRANSCRIPT ID:{video_id}]\n{full_text}")
 
-        # Track it in global state — marked as virtual so re-ingestion skips it
+        # Track it in global state
         documents[doc_id] = {
             "id": doc_id,
             "filename": f"YouTube: {video_id}",
             "upload_time": datetime.now().isoformat(),
-            "path": fake_path,
+            "path": file_path,
             "size_bytes": len(full_text),
-            "is_virtual": True   # Does NOT exist on disk
+            "is_virtual": False
         }
 
-        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
-        chunks = splitter.split_documents([doc])
+        # Ingest the new file using the standard pipeline
+        print(f"Ingesting YouTube transcript...")
+        new_chunks = ingest_files([file_path])
 
-        print(f"✓ Extracted {len(chunks)} chunks from YouTube transcript.")
+        if not new_chunks:
+             raise HTTPException(
+                status_code=400,
+                detail="No content could be extracted from YouTube transcript"
+            )
 
-        # Append to existing vectorstore if available, otherwise create a new one
+        print(f"[OK] Extracted {len(new_chunks)} new chunks")
+
+        # Update global vectorstore
         if vectorstore is None:
-            vectorstore = build_or_load_vectorstore(chunks)
+            vectorstore = build_or_load_vectorstore(new_chunks)
         else:
-            vectorstore.add_documents(chunks)
-            # Persist updated index using the canonical path from rag.py
+            vectorstore.add_documents(new_chunks)
             vectorstore.save_local(INDEX_PATH)
 
         rag_chain = build_rag_chain_with_sources(vectorstore)
@@ -397,7 +440,7 @@ async def upload_youtube(url: str):
         return {
             "message": "Successfully ingested YouTube video!",
             "video_id": video_id,
-            "chunks_added": len(chunks)
+            "chunks_added": len(new_chunks)
         }
     except HTTPException:
         raise
@@ -424,7 +467,7 @@ async def ask_audio(audio_file: UploadFile = File(...)):
 
     groq_api_key = (os.getenv("GROQ_API_KEY") or "").strip()
     if not groq_api_key:
-        print("❌ Error: GROQ_API_KEY not found in environment.")
+        print("[ERROR] GROQ_API_KEY not found in environment.")
         raise HTTPException(status_code=500, detail="GROQ_API_KEY not found in environment or empty.")
 
     print(f"DEBUG: Audio key present, length: {len(groq_api_key)}")
@@ -457,7 +500,7 @@ async def ask_audio(audio_file: UploadFile = File(...)):
 
         transcription_result = response.json()
         question = transcription_result.get("text", "")
-        print(f"✓ Transcribed Question: {question}")
+        print(f"[OK] Transcribed Question: {question}")
 
         if not question.strip():
             raise Exception("No speech recognized in audio file.")
@@ -509,8 +552,14 @@ async def clear_history():
 
 
 @app.get("/")
-async def root():
-    """API Status check."""
+async def root(request: Request):
+    """API Status check or Web Interface."""
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        frontend_html = os.path.join(os.path.dirname(BACKEND_DIR), "frontend", "index.html")
+        if os.path.exists(frontend_html):
+            with open(frontend_html, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
     return {
         "status": "online",
         "version": "2.0.0",

@@ -10,7 +10,8 @@ from langchain_community.tools import DuckDuckGoSearchRun
 import os
 import shutil
 
-INDEX_PATH = "data/faiss_index"
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+INDEX_PATH = os.path.join(BACKEND_DIR, "data", "faiss_index")
 
 
 def build_or_load_vectorstore(chunks=None):
@@ -79,10 +80,10 @@ def build_rag_chain(vectorstore):
 
     llm = ChatGroq(
         api_key=groq_api_key,
-        model_name="llama-3.1-8b-instant",
+        model_name="llama-3.3-70b-versatile",
         temperature=0
     )
-    print("✓ Using Groq Llama 3.1 8B (Fast Model)")
+    print("[OK] Using Groq Llama 3.3 70B Versatile")
 
     chain = (
         {"context": retriever, "question": RunnablePassthrough()}
@@ -125,7 +126,7 @@ def build_rag_chain_with_sources(vectorstore):
         model_name="llama-3.3-70b-versatile",
         temperature=0.3
     )
-    print("✓ Using Groq Llama 3.3 70B Versatile for Generation")
+    print("[OK] Using Groq Llama 3.3 70B Versatile for Generation")
 
     # web_search = DuckDuckGoSearchRun()  # Disabled due to library compatibility
 

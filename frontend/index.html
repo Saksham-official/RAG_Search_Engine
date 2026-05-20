@@ -576,7 +576,13 @@
 <div id="toast-container"></div>
 
 <script>
-  const API = 'http://localhost:8000';
+  // API URL configuration:
+  // - Local development: http://localhost:8000
+  // - Combined Render hosting: uses current window.location.origin
+  // - Independent Vercel hosting: Replace 'https://your-render-backend-url.onrender.com' with your actual Render URL
+  const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000'
+    : (window.location.origin.includes('vercel.app') ? 'https://your-render-backend-url.onrender.com' : window.location.origin);
 
   // ── State ──────────────────────────────────────────
   let selectedFiles  = [];

@@ -1,63 +1,71 @@
-# 🔍 RAG Search Engine
+# 🔍 Premium Multimodal RAG Search Engine
 
-> An intelligent document search and question-answering system powered by Retrieval-Augmented Generation (RAG), supporting multiple LLM providers and featuring source citation.
+> A high-performance, production-ready document search and question-answering system powered by Retrieval-Augmented Generation (RAG). Featuring multimodal vision processing, source citations, conversation history, and a modern dashboard UI.
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
+<div align="center">
+
+[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org)
-[![LangChain](https://img.shields.io/badge/🦜_LangChain-121212?style=for-the-badge)](https://python.langchain.com/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
+[![LangChain](https://img.shields.io/badge/🦜_LangChain-121212?style=for-the-badge&logo=langchain&logoColor=white)](https://python.langchain.com/)
+[![Groq](https://img.shields.io/badge/Groq-Llama_3.3_70B-orange?style=for-the-badge)](https://groq.com/)
+[![FAISS](https://img.shields.io/badge/FAISS-VectorStore-green?style=for-the-badge)](https://github.com/facebookresearch/faiss)
+
+</div>
 
 ---
 
 ## 🎯 Overview
 
-This project implements a **production-ready PDF Question-Answering system** using Retrieval-Augmented Generation (RAG). Upload multiple PDF documents and ask questions - the system retrieves relevant context and generates accurate answers with **source citations**, showing exactly which document and page the answer came from.
+This project implements a **multimodal PDF Question-Answering system** using Retrieval-Augmented Generation (RAG). Users can upload documents (PDF, TXT, MD, HTML), which are instantly processed, chunked, and indexed. In addition to extracting text, the engine automatically detects and extracts images (charts, tables, diagrams) from PDF pages, generates semantic descriptions using **Groq's Llama 4 Scout Vision** model, and indexes them alongside textual data.
 
-### ✨ Key Features
-
-- 🗂️ **Multiple Document Support** - Upload and manage entire document libraries
-- 🎯 **Source Citation** - Every answer includes references to source documents and pages
-- 💬 **Chat History** - Automatic conversation tracking with timestamps
-- 🔄 **Dual LLM Support** - Switch between OpenAI and Groq seamlessly
-- 📊 **Document Management** - List, upload, and delete documents via REST API
-- ⚡ **Fast Retrieval** - FAISS vector store for efficient similarity search
-- 🔍 **Semantic Search** - HuggingFace Inference API embeddings for accurate context retrieval
-- 📦 **Lightweight Deployment** - Under 200MB total size (API-based embeddings)
+When you ask a question, the system retrieves the most relevant textual and visual context to synthesize an accurate answer with **exact page-level citations**.
 
 ---
 
-## 🏗️ Architecture
+## ✨ Key Features
 
-### System Architecture
+*   🖼️ **Multimodal Vision Indexing** — Automatically extracts embedded images from PDFs, generates descriptive summaries using `meta-llama/llama-4-scout-17b-16e-instruct` on Groq, and index-matches them. You can search for data inside charts, tables, and diagrams!
+*   🗂️ **Multiple Document Support** — Upload and manage multiple files simultaneously. Search across your entire catalog or query specific documents.
+*   🎯 **Verifiable Citations** — Every response includes exact references (source document name, page number, and content snippet) to eliminate hallucinations.
+*   💬 **Premium Glassmorphic Interface** — An interactive, responsive web dashboard with a clean sidebar, file dropzone, audio transcriber interface, and modal context viewer.
+*   ⚡ **API-Based Hybrid Embeddings** — Fast, lightweight deployment under 200MB using the HuggingFace Inference API (`all-MiniLM-L6-v2`), avoiding heavy local model downloads.
+*   🔄 **Dual LLM Integrations** — Hot-swap between Groq (`llama-3.3-70b-versatile` for high-speed generation) and OpenAI (`gpt-3.5-turbo` or newer) via environment variables.
 
+---
+
+## 🏗️ System Architecture
+
+### Component Diagram
 ```mermaid
 graph TB
-    subgraph Client["Client Layer"]
+    subgraph Client["Client Layer (Frontend)"]
         UI[Web Interface/API Client]
     end
     
-    subgraph API["FastAPI Application"]
+    subgraph API["FastAPI Application (Backend)"]
         Upload[Upload Endpoint]
         Ask[Ask Endpoint]
         Docs[Documents Endpoint]
         History[History Endpoint]
     end
     
-    subgraph Processing["Document Processing"]
-        Ingest[Document Ingestion]
-        Chunk[Text Chunking]
-        Embed[Embedding Generation]
+    subgraph Processing["Document Pipeline"]
+        Ingest[Document Ingest & Parsing]
+        Vision[PyMuPDF Image Extractor]
+        LlamaVision[Groq Llama 4 Scout Vision]
+        Chunk[Recursive Text Splitter]
+        Embed[HF Inference Embeddings]
     end
     
     subgraph Storage["Storage Layer"]
-        Files[(File System)]
-        Vector[(FAISS Vector Store)]
-        Memory[(In-Memory State)]
+        Files[(Local File Uploads)]
+        Vector[(FAISS Vector Database)]
+        Memory[(In-Memory History Store)]
     end
     
-    subgraph AI["AI Layer"]
-        Retriever[Semantic Retriever]
-        LLM[LLM Provider<br/>OpenAI/Groq]
+    subgraph AI["Generative AI Layer"]
+        Retriever[Semantic Context Retriever]
+        LLM[Groq Llama 3.3 70B Engine]
     end
     
     UI --> |Upload PDFs| Upload
@@ -67,6 +75,9 @@ graph TB
     
     Upload --> Ingest
     Ingest --> Chunk
+    Ingest --> Vision
+    Vision --> |Extract Raw Images| LlamaVision
+    LlamaVision --> |Visual Context| Chunk
     Chunk --> Embed
     Embed --> Vector
     Upload --> Files
@@ -74,64 +85,42 @@ graph TB
     Ask --> Retriever
     Retriever --> Vector
     Retriever --> LLM
-    LLM --> |Answer + Sources| Ask
+    LLM --> |Response + Page Citations| Ask
     Ask --> Memory
     
     Docs --> Files
     History --> Memory
     
-    style UI fill:#e1f5ff
-    style LLM fill:#fff4e1
-    style Vector fill:#f0e1ff
-    style Memory fill:#e1ffe1
+    style UI fill:#e1f5ff,stroke:#005571,stroke-width:2px
+    style LLM fill:#fff4e1,stroke:#ffa500,stroke-width:2px
+    style Vector fill:#f0e1ff,stroke:#8a2be2,stroke-width:2px
 ```
 
-### RAG Pipeline Flow
+---
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant API
-    participant Vectorstore
-    participant Retriever
-    participant LLM
-    participant History
-    
-    User->>API: Upload PDF
-    API->>API: Extract text & chunk
-    API->>Vectorstore: Store embeddings
-    API-->>User: Upload successful
-    
-    User->>API: Ask question
-    API->>Retriever: Get relevant chunks
-    Retriever->>Vectorstore: Similarity search
-    Vectorstore-->>Retriever: Top 3 chunks
-    Retriever->>LLM: Context + Question
-    LLM-->>Retriever: Generated answer
-    Retriever->>History: Save Q&A
-    API-->>User: Answer + Sources
+## 📁 Repository Structure
+
 ```
-
-### Data Flow
-
-```mermaid
-graph LR
-    A[📄 PDF Upload] --> B[Text Extraction]
-    B --> C[Text Chunking]
-    C --> D[Generate Embeddings]
-    D --> E[FAISS Index]
-    
-    F[❓ User Question] --> G[Embed Question]
-    G --> H[Similarity Search]
-    E --> H
-    H --> I[Retrieve Top K Chunks]
-    I --> J[LLM Context]
-    J --> K[Generate Answer]
-    K --> L[✅ Answer + Sources]
-    
-    style A fill:#90EE90
-    style F fill:#87CEEB
-    style L fill:#FFD700
+RAG_Search_Engine/
+├── backend/                  # Backend application directory
+│   ├── main.py               # FastAPI application & REST routing
+│   ├── rag.py                # LangChain & RAG chain implementation
+│   ├── vision.py             # Image extraction & Llama Scout processing
+│   ├── ingest.py             # Document ingest & vector-store compilation
+│   ├── loaders.py            # Custom document loaders
+│   ├── requirements.txt      # Python backend packages
+│   ├── .env                  # Environment secrets (GROQ, HuggingFace keys)
+│   ├── uploads/              # Raw document storage directory
+│   └── data/
+│       ├── faiss_index/      # Saved FAISS index binaries
+│       └── images/           # Extracted image assets
+│
+├── frontend/                 # Frontend interface files
+│   └── index.html            # Unified glassmorphic client application
+│
+├── Dockerfile                # Multi-stage production container build
+├── render.yaml               # Deployment blueprint configuration
+└── README.md                 # Project documentation
 ```
 
 ---
@@ -139,343 +128,155 @@ graph LR
 ## 🚀 Quick Start
 
 ### Prerequisites
+*   Python 3.11+
+*   Groq API Key (Sign up for a free tier key at [Groq Console](https://console.groq.com))
+*   HuggingFace API Key (Create an API Token at [HuggingFace Settings](https://huggingface.co/settings/tokens))
 
-- Python 3.11 or higher
-- Virtual environment (recommended)
-- Groq API key (free tier available)
-- HuggingFace API key (free tier available)
-
-### Installation
-
-1. **Clone the repository**
+### 1. Installation
+Clone the repository and set up a virtual environment:
 ```bash
 git clone <your-repo-url>
-cd Pdf_RAG
-```
+cd RAG_Search_Engine
 
-2. **Create and activate virtual environment**
-```bash
+# Create virtual environment
 python -m venv .venv
 
-# Windows
+# Activate environment
+# Windows:
 .venv\Scripts\activate
-
-# Linux/Mac
+# Linux/macOS:
 source .venv/bin/activate
 ```
 
-3. **Install dependencies**
+Install the backend dependencies:
 ```bash
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
-4. **Configure environment variables**
-
-Create a `.env` file in the project root:
-
+### 2. Configuration
+Create a `.env` file inside the `backend/` directory:
 ```env
-# Groq API Key (free tier available)
-GROQ_API_KEY=your-groq-api-key-here
+# backend/.env
 
-# HuggingFace API Key (free tier available)
-# Used for lightweight API-based embeddings (<200MB deployment)
-HF_API_KEY=your-huggingface-api-key-here
+# LLM Configuration (groq / openai)
+LLM_PROVIDER=groq
+GROQ_API_KEY=gsk_your_groq_api_key_here
+
+# Embeddings API Key
+HF_API_KEY=hf_your_huggingface_api_key_here
+
+# Optional: OpenAI Settings
+# LLM_PROVIDER=openai
+# OPENAI_API_KEY=sk_your_openai_api_key_here
 ```
 
-5. **Run the server**
+### 3. Run the Development Server
+Launch the FastAPI backend from the root directory:
 ```bash
-uvicorn main:app --reload
+uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-6. **Access the API**
-- API Documentation: http://127.0.0.1:8000/docs
-- API Base URL: http://127.0.0.1:8000
+Once running, access the web client or interactive docs:
+*   **Web Interface UI**: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
+*   **Swagger API Docs**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 ---
 
-## 📖 Usage Guide
+## 📖 API Usage Guide
 
-### 1. Upload Documents
-
-**Upload single or multiple PDFs:**
-
+### 1. Document Upload
+Upload single or multiple files (PDF, TXT, MD, HTML) to the engine:
 ```bash
 curl -X POST "http://127.0.0.1:8000/upload" \
-  -F "files=@document1.pdf" \
-  -F "files=@document2.pdf"
+  -F "files=@invoice.pdf" \
+  -F "files=@notes.txt"
 ```
-
 **Response:**
 ```json
 {
   "message": "Successfully uploaded 2 file(s)",
   "uploaded": [
-    {"id": "abc-123", "filename": "document1.pdf"},
-    {"id": "def-456", "filename": "document2.pdf"}
+    {"id": "6f4e6f73-5eb8-4cfd-978b-1795efa39967", "filename": "invoice.pdf"},
+    {"id": "5ac9f8ba-bf48-410e-b0c3-08b648f88672", "filename": "notes.txt"}
   ],
   "total_documents": 2,
-  "total_chunks": 150
+  "new_chunks_added": 42
 }
 ```
 
-### 2. Ask Questions
-
-**Query your documents:**
-
+### 2. Query Chat (Ask Questions)
+Query the knowledge base using semantic search:
 ```bash
-curl -X POST "http://127.0.0.1:8000/ask?question=What%20is%20the%20main%20topic%3F"
+curl -X POST "http://127.0.0.1:8000/ask" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "How much was charged on the invoice?"}'
 ```
-
-**Response with sources:**
+**Response:**
 ```json
 {
-  "answer": "The main topic is artificial intelligence and machine learning...",
+  "answer": "The invoice charges total $450.00 for consultancy services.",
   "sources": [
     {
-      "content": "Artificial intelligence encompasses...",
+      "content": "Invoice Summary:\nConsultancy: $450.00...",
       "metadata": {
-        "source_file": "document1.pdf",
-        "page": 3
+        "source_file": "invoice.pdf",
+        "page": 1
       }
     }
   ],
-  "source_count": 2
+  "source_count": 1
 }
 ```
 
-### 3. Manage Documents
-
-**List all documents:**
+### 3. File Operations
+**List indexed files:**
 ```bash
 curl http://127.0.0.1:8000/documents
 ```
 
-**Delete specific document:**
+**Delete a specific file (deletes chunks and rebuilds vector store):**
 ```bash
-curl -X DELETE "http://127.0.0.1:8000/documents/abc-123"
+curl -X DELETE "http://127.0.0.1:8000/documents/6f4e6f73-5eb8-4cfd-978b-1795efa39967"
 ```
 
-### 4. View Chat History
+---
 
-**Get conversation history:**
+## 🔧 REST Endpoint Definitions
+
+| Method | Endpoint | Payload | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/upload` | Multipart files | Upload and index documents |
+| `POST` | `/ask` | `{"question": "..."}` | Submit query and retrieve answer with sources |
+| `GET` | `/documents` | None | Fetch all active documents |
+| `DELETE` | `/documents/{doc_id}` | Path parameter | Remove a document & rebuild the index |
+| `GET` | `/history` | None | Fetch recent chat conversation list |
+| `DELETE` | `/clear-history` | None | Clear the current user conversation history |
+| `GET` | `/` | None | Serves the web interface dashboard |
+
+---
+
+## 🐋 Production Deployment (Docker)
+
+To deploy the system inside a Docker container:
 ```bash
-curl http://127.0.0.1:8000/history
+# Build the container image
+docker build -t rag-search-engine .
+
+# Run the container
+docker run -p 8000:8000 -e GROQ_API_KEY="your_key" -e HF_API_KEY="your_key" rag-search-engine
 ```
 
-**Clear history:**
-```bash
-curl -X DELETE "http://127.0.0.1:8000/clear-history"
-```
+The `Dockerfile` is optimized to execute in multi-stage environments like **Render**, **Fly.io**, or **AWS ECS**.
 
 ---
 
-## 🔧 API Endpoints
+## 💡 Tech Stack References
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/upload` | Upload one or more PDF files |
-| `GET` | `/documents` | List all uploaded documents |
-| `DELETE` | `/documents/{doc_id}` | Delete a specific document |
-| `POST` | `/ask` | Ask a question and get answer with sources |
-| `GET` | `/history` | Retrieve conversation history |
-| `DELETE` | `/clear-history` | Clear all chat history |
-| `GET` | `/` | API health check |
-
-### Detailed API Documentation
-
-Interactive API documentation is available at `/docs` when the server is running.
-
----
-
-## 🛠️ Technology Stack
-
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Web Framework** | FastAPI | High-performance API server |
-| **Vector Store** | FAISS | Efficient similarity search |
-| **Embeddings** | HuggingFace Inference API (all-MiniLM-L6-v2) | Text → Vector conversion |
-| **LLM** | Groq (llama-3.1-8b) / OpenAI (gpt-3.5-turbo) | Answer generation |
-| **RAG Framework** | LangChain | Orchestration and chains |
-| **PDF Processing** | PyPDF | Document parsing |
-| **Environment** | Python 3.11+ | Runtime environment |
-
----
-
-## 📁 Project Structure
-
-```
-Pdf_RAG/
-├── main.py                    # FastAPI application & endpoints
-├── rag.py                     # RAG chain implementation
-├── ingest.py                  # Document ingestion pipeline
-├── loaders.py                 # Document loaders (PDF, TXT, etc.)
-├── requirements.txt           # Python dependencies
-├── .env                       # Environment configuration
-├── restart_server.bat         # Server restart utility
-│
-├── uploads/                   # Uploaded PDF storage
-├── data/
-│   └── faiss_index/          # Vector store index
-│
-├── API_USAGE.md              # API usage examples
-├── FEATURES_EXPLAINED.md     # Feature documentation
-└── README.md                 # This file
-```
-
----
-
-## 🎓 How It Works
-
-### 1. Document Upload & Processing
-
-```python
-# User uploads PDF → System extracts text
-PDF → PyPDFLoader → Text Chunks (512 chars)
-
-# Generate embeddings for each chunk
-Text Chunks → HuggingFace Embeddings → Vector Embeddings
-
-# Store in FAISS index
-Vector Embeddings → FAISS.from_documents() → Searchable Index
-```
-
-### 2. Question Answering
-
-```python
-# User asks question
-Question → Embed Question → Query Vector
-
-# Retrieve similar chunks
-Query Vector → FAISS Similarity Search → Top 3 Chunks
-
-# Generate answer
-Chunks + Question → LLM (Groq/OpenAI) → Answer
-
-# Return with sources
-Answer + Source Metadata → User
-```
-
-### 3. Source Citation
-
-Each answer includes:
-- **Document name** - Which PDF contained the answer
-- **Page number** - Exact page location
-- **Text excerpt** - Preview of relevant content
-
-This ensures **transparency** and **verifiability** of all answers.
-
----
-
-## 🔄 Switching LLM Providers
-
-### Use Groq (Free Tier)
-```env
-LLM_PROVIDER=groq
-GROQ_API_KEY=your-groq-key
-```
-- **Model:** llama-3.1-8b-instant
-- **Speed:** Very fast
-- **Cost:** Free tier available
-- **Best for:** Development, testing, demos
-
-### Use OpenAI (Paid)
-```env
-LLM_PROVIDER=openai
-OPENAI_API_KEY=your-openai-key
-```
-- **Model:** gpt-3.5-turbo (or gpt-4)
-- **Quality:** High accuracy
-- **Cost:** Pay per token
-- **Best for:** Production, high-quality answers
-
----
-
-## 🎯 Key Features Explained
-
-### 1️⃣ Multiple Document Support
-
-Upload and manage entire document libraries:
-- Each document gets a unique UUID
-- Documents persist across uploads
-- Add/remove documents dynamically
-- Search across all documents simultaneously
-
-### 2️⃣ Source Citation
-
-Every answer includes verifiable sources:
-```json
-{
-  "answer": "...",
-  "sources": [
-    {
-      "content": "Relevant text excerpt...",
-      "metadata": {
-        "source_file": "research.pdf",
-        "page": 5
-      }
-    }
-  ]
-}
-```
-
-### 3️⃣ Chat History
-
-Automatic conversation tracking:
-- Stores last 50 Q&A pairs
-- Includes timestamps
-- Preserves source information
-- Review past conversations anytime
-
----
-
-## 🚦 Getting API Keys
-
-### Groq (Required for LLM)
-
-1. Visit [Groq Console](https://console.groq.com)
-2. Sign up for free account
-3. Navigate to API Keys section
-4. Create new API key
-5. Copy to `.env` file as `GROQ_API_KEY`
-
-### HuggingFace (Required for Embeddings)
-
-1. Visit [HuggingFace Settings](https://huggingface.co/settings/tokens)
-2. Sign up for free account
-3. Create new access token (read permissions)
-4. Copy to `.env` file as `HF_API_KEY`
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License.
-
----
-
-## 🙋‍♂️ Support
-
-For questions or issues:
-- Open an issue on GitHub
-- Check the `/docs` endpoint for API documentation
-- Review `FEATURES_EXPLAINED.md` for detailed feature docs
-
----
-
-## 🎖️ Acknowledgments
-
-- **LangChain** - RAG framework
-- **FastAPI** - Web framework
-- **Groq** - Fast LLM inference
-- **OpenAI** - GPT models
-- **HuggingFace** - Embeddings models
-- **FAISS** - Vector similarity search
+*   **FastAPI** — High-performance python web framework.
+*   **LangChain** — System orchestration and LLM prompt layout.
+*   **FAISS (Facebook AI Similarity Search)** — Blazing-fast similarity lookup for vector indices.
+*   **HuggingFace Inference API** — Converts raw text into vectors using `all-MiniLM-L6-v2`.
+*   **Groq Cloud** — Hyper-fast execution of Llama 3.3 (Text) and Llama 4 Scout (Vision) models.
 
 ---
 

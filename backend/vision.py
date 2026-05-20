@@ -19,8 +19,12 @@ MIME_TYPE_MAP = {
 DEFAULT_MIME_TYPE = "image/jpeg"
 
 
-def extract_images_from_pdf(pdf_path, output_dir="data/images"):
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def extract_images_from_pdf(pdf_path, output_dir=None):
     """Extracts images from a PDF and saves them to the output directory."""
+    if output_dir is None:
+        output_dir = os.path.join(BACKEND_DIR, "data", "images")
     os.makedirs(output_dir, exist_ok=True)
     doc = fitz.open(pdf_path)
     image_paths = []
@@ -55,7 +59,7 @@ def extract_images_from_pdf(pdf_path, output_dir="data/images"):
 
 import json
 
-CACHE_FILE = "data/image_summaries.json"
+CACHE_FILE = os.path.join(BACKEND_DIR, "data", "image_summaries.json")
 
 def _load_cache():
     if os.path.exists(CACHE_FILE):
@@ -76,7 +80,7 @@ def get_image_summary(image_path: str) -> str:
     # 1. Check disk cache first
     cache = _load_cache()
     if image_path in cache:
-        print(f"  → Found cached summary for {os.path.basename(image_path)}")
+        print(f"  -> Found cached summary for {os.path.basename(image_path)}")
         return cache[image_path]
 
     # 2. Call Vision LLM
@@ -90,7 +94,7 @@ def get_image_summary(image_path: str) -> str:
         groq_key = os.getenv("GROQ_API_KEY")
         chat = ChatGroq(
             api_key=groq_key,
-            model_name="llama-3.2-11b-vision-preview",
+            model_name="meta-llama/llama-4-scout-17b-16e-instruct",
             temperature=0
         )
         msg = chat.invoke(
