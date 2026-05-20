@@ -81,7 +81,17 @@ async def lifespan(app: FastAPI):
             rag_chain = build_rag_chain_with_sources(vectorstore)
             print("[OK] Loaded existing vector store from disk")
         except Exception as e:
-            print(f"Could not load existing vector store: {e}")
+            print(f"Could not load existing vector store ({e}). Rebuilding from uploads directory...")
+            try:
+                paths = [doc["path"] for doc in documents.values() if os.path.exists(doc["path"])]
+                if paths:
+                    chunks = ingest_files(paths)
+                    if chunks:
+                        vectorstore = build_or_load_vectorstore(chunks)
+                        rag_chain = build_rag_chain_with_sources(vectorstore)
+                        print("[OK] Rebuilt vector store from existing uploads")
+            except Exception as re:
+                print(f"Could not rebuild vector store from uploads: {re}")
 
     print("[OK] Server started - Using API-based embeddings (lightweight deployment!)")
     print("[OK] Ready to receive PDFs!")
