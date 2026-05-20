@@ -811,13 +811,8 @@
   const onboardingScreen = document.getElementById('onboarding-screen');
   const startBtn         = document.getElementById('start-btn');
 
-  if (localStorage.getItem('rag_onboarded') === 'true') {
-    onboardingScreen.classList.add('hidden');
-  }
-
   startBtn.addEventListener('click', () => {
     onboardingScreen.classList.add('hidden');
-    localStorage.setItem('rag_onboarded', 'true');
   });
 
   window.showOnboarding = function() {
