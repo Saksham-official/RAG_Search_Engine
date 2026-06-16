@@ -10,7 +10,6 @@ from langchain_community.document_loaders import (
 def load_file(file_path: str):
     ext = os.path.splitext(file_path)[1].lower()
 
-    # Select the appropriate loader based on file extension
     try:
         if ext == ".pdf":
             loader = PyPDFLoader(file_path)
@@ -23,7 +22,6 @@ def load_file(file_path: str):
         else:
             loader = UnstructuredFileLoader(file_path)
 
-        # Load the documents
         print(f"Using loader: {loader.__class__.__name__}")
         docs = loader.load()
         
@@ -31,7 +29,6 @@ def load_file(file_path: str):
             print(f"WARNING: Loader returned empty documents for {file_path}")
             return []
 
-        # Add source file metadata to each document (skipped for custom PDF loader)
         for doc in docs:
             doc.metadata["source_file"] = os.path.basename(file_path)
 

@@ -15,25 +15,17 @@ INDEX_PATH = os.path.join(BACKEND_DIR, "data", "faiss_index")
 
 
 def build_or_load_vectorstore(chunks=None):
-    """
-    Build a new FAISS vectorstore from chunks, or load one from disk.
-    
-    - If `chunks` is provided, always builds a fresh index (replacing any existing one).
-    - If `chunks` is None, loads the existing on-disk index.
-    - Raises ValueError if neither chunks nor an existing index are available.
-    """
+   
     hf_api_key = os.getenv("HF_API_KEY")
     if not hf_api_key:
         raise ValueError("HF_API_KEY environment variable is not set.")
 
-    # Using HuggingFace Inference API for embeddings (no local model needed!)
-    # Requires an active HF token with 'Inference' permissions in .env
+    
     embeddings = HuggingFaceEndpointEmbeddings(
         huggingfacehub_api_token=hf_api_key,
         model="sentence-transformers/all-MiniLM-L6-v2"
     )
 
-    # If new chunks are provided, always create a fresh index (new upload)
     if chunks is not None:
         # Delete old index to ensure fresh data
         if os.path.exists(INDEX_PATH):
@@ -146,15 +138,6 @@ def build_rag_chain_with_sources(vectorstore):
                 context_parts.append(doc.page_content)
 
         context = "\n\n".join(context_parts)
-
-        # Real-time internet fallback — [DISABLED FOR COMPATIBILITY]
-        # try:
-        #     print("Fetching real-time web context via DuckDuckGo...")
-        #     web_results = web_search.invoke(question)
-        #     if web_results and len(web_results.strip()) > 10:
-        #         context += f"\n\n--- SUPPLEMENTARY REAL-TIME WEB SEARCH RESULTS ---\n{web_results}"
-        # except Exception as e:
-        #     print(f"Web search failed (skipping): {e}")
 
         human_content = f"Context information:\n{context}\n\nUser Question: {question}"
 
